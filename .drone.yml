@@ -20,7 +20,7 @@ pipeline:
         USE_FEDERATED_SERVER: true
 
   configure-federation-server:
-    image: owncloudci/php:${PHP_VERSION}
+    image: arturneumann/owncloud-ci-php:7.1
     pull: true
     commands:
       - cd /drone/fed-server
@@ -31,23 +31,12 @@ pipeline:
       - php occ config:system:set trusted_domains 2 --value=federated
       - php occ log:manage --level 0
       - php occ config:list
-      - echo "export TEST_SERVER_FED_URL=http://federated" > /drone/saved-settings.sh
-    when:
-      matrix:
-        USE_FEDERATED_SERVER: true
-
-  configure-federation-server:
-    image: arturneumann/owncloud-ci-php:7.1
-    pull: true
-    commands:
-      - cd /drone/fed-server
       - echo "export TEST_SERVER_FED_URL=https://federated" > /drone/saved-settings.sh
-      - php occ security:certificates:import /etc/apache2/ssl/server.crt
+      - php occ security:certificates:import /drone/server.crt
       - php occ security:certificates
     when:
       matrix:
         USE_FEDERATED_SERVER: true
-        USE_SSL: true
 
   fix-permissions-federation-server:
     image: owncloudci/php:${PHP_VERSION}
@@ -150,7 +139,7 @@ pipeline:
       - php occ config:system:set trusted_domains 2 --value=federated
       - php occ log:manage --level 0
       - php occ config:list
-      - php occ security:certificates:import /etc/apache2/ssl/federated.crt
+      - php occ security:certificates:import /drone/federated.crt
       - php occ security:certificates
     when:
       matrix:
@@ -368,7 +357,7 @@ pipeline:
       - BROWSER=chrome
       - SELENIUM_HOST=selenium
       - SELENIUM_PORT=4444
-      - TEST_SERVER_URL=http://server
+      - TEST_SERVER_URL=https://server
       - PLATFORM=Linux
       - MAILHOG_HOST=email
     commands:
@@ -474,33 +463,13 @@ services:
     environment:
       - APACHE_WEBROOT=/drone/src/
       - APACHE_CONFIG_TEMPLATE=ssl
+      - APACHE_SSL_CERT_CN=server
+      - APACHE_SSL_CERT=/drone/server.crt
+      - APACHE_SSL_KEY=/drone/server.key
     command: [ "/usr/local/bin/apachectl", "-e", "debug" , "-D", "FOREGROUND" ]
     when:
       matrix:
         USE_SERVER: true
-        USE_SSL: true
-
-  server:
-    image: owncloudci/php:${PHP_VERSION}
-    pull: true
-    environment:
-      - APACHE_WEBROOT=/drone/src/
-    command: [ "/usr/local/bin/apachectl", "-e", "debug" , "-D", "FOREGROUND" ]
-    when:
-      matrix:
-        USE_SERVER: true
-        USE_SSL: false
-
-  federated:
-    image: owncloudci/php:${PHP_VERSION}
-    pull: true
-    environment:
-      - APACHE_WEBROOT=/drone/fed-server/
-    command: [ "/usr/local/bin/apachectl", "-e", "debug" , "-D", "FOREGROUND" ]
-    when:
-      matrix:
-        USE_FEDERATED_SERVER: true
-        USE_SSL: false
 
   federated:
     image: arturneumann/owncloud-ci-php:7.1
@@ -508,13 +477,13 @@ services:
     environment:
       - APACHE_WEBROOT=/drone/fed-server/
       - APACHE_CONFIG_TEMPLATE=ssl
-      - APACHE_SSL_CERT=/etc/apache2/ssl/federated.crt
-      - APACHE_SSL_KEY=/etc/apache2/ssl/federated.key
+      - APACHE_SSL_CERT_CN=federated
+      - APACHE_SSL_CERT=/drone/federated.crt
+      - APACHE_SSL_KEY=/drone/federated.key
     command: [ "/usr/local/bin/apachectl", "-e", "debug" , "-D", "FOREGROUND" ]
     when:
       matrix:
         USE_FEDERATED_SERVER: true
-        USE_SSL: true
 
   apache_webdav:
     image: owncloudci/php
@@ -590,7 +559,6 @@ matrix:
   # Litmus
     - PHP_VERSION: 7.1
       USE_SERVER: true
-      USE_SSL: true
       TEST_SUITE: litmus
       INSTALL_SERVER: true
       OWNCLOUD_LOG: true
@@ -708,7 +676,6 @@ matrix:
       BEHAT_SUITE: apiMain
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -718,7 +685,6 @@ matrix:
       BEHAT_SUITE: apiMetadataApps
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -728,7 +694,6 @@ matrix:
       BEHAT_SUITE: apiSharingNotifications
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -739,7 +704,6 @@ matrix:
       BEHAT_SUITE: apiCapabilities
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -749,7 +713,6 @@ matrix:
       BEHAT_SUITE: apiFederation
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       USE_FEDERATED_SERVER: true
       FEDERATION_OC_VERSION: daily-stable10-qa
       INSTALL_SERVER: true
@@ -761,7 +724,6 @@ matrix:
       BEHAT_SUITE: apiProvisioning-v1
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -771,7 +733,6 @@ matrix:
       BEHAT_SUITE: apiProvisioning-v2
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -781,7 +742,6 @@ matrix:
       BEHAT_SUITE: apiSharees
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -791,7 +751,6 @@ matrix:
       BEHAT_SUITE: apiShareManagement
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -801,7 +760,6 @@ matrix:
       BEHAT_SUITE: apiShareOperations
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -811,7 +769,6 @@ matrix:
       BEHAT_SUITE: apiTrashbin
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -821,7 +778,6 @@ matrix:
       BEHAT_SUITE: apiWebdavOperations
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -831,7 +787,6 @@ matrix:
       BEHAT_SUITE: apiWebdavProperties
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -842,7 +797,6 @@ matrix:
       BEHAT_SUITE: webUILogin
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -853,7 +807,6 @@ matrix:
       BEHAT_SUITE: webUIAdminSettings
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -863,7 +816,6 @@ matrix:
       BEHAT_SUITE: webUISharingNotifications
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -875,7 +827,6 @@ matrix:
       BEHAT_SUITE: webUIFavorites
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -885,7 +836,6 @@ matrix:
       BEHAT_SUITE: webUIPersonalSettings
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -896,7 +846,6 @@ matrix:
       BEHAT_SUITE: webUIFiles
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -906,7 +855,6 @@ matrix:
       BEHAT_SUITE: webUIMoveFilesFolders
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -916,7 +864,6 @@ matrix:
       BEHAT_SUITE: webUIRenameFiles
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -926,7 +873,6 @@ matrix:
       BEHAT_SUITE: webUIRenameFolders
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -936,7 +882,6 @@ matrix:
       BEHAT_SUITE: webUITrashbin
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -946,7 +891,6 @@ matrix:
       BEHAT_SUITE: webUISharingInternalGroups
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -956,7 +900,6 @@ matrix:
       BEHAT_SUITE: webUISharingInternalUsers
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -966,7 +909,6 @@ matrix:
       BEHAT_SUITE: webUISharingExternal
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       USE_FEDERATED_SERVER: true
       FEDERATION_OC_VERSION: daily-stable10-qa
       INSTALL_SERVER: true
@@ -978,7 +920,6 @@ matrix:
       BEHAT_SUITE: webUIRestrictSharing
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -988,7 +929,6 @@ matrix:
       BEHAT_SUITE: webUIUpload
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: false
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -998,7 +938,6 @@ matrix:
       TEST_SUITE: caldav
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -1009,7 +948,6 @@ matrix:
       TEST_SUITE: carddav
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -1020,7 +958,6 @@ matrix:
       TEST_SUITE: caldav-old-endpoint
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
@@ -1031,7 +968,6 @@ matrix:
       TEST_SUITE: carddav-old-endpoint
       DB_TYPE: mariadb
       USE_SERVER: true
-      USE_SSL: true
       INSTALL_SERVER: true
       CHOWN_SERVER: true
       OWNCLOUD_LOG: true
