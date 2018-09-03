@@ -36,6 +36,19 @@ pipeline:
       matrix:
         USE_FEDERATED_SERVER: true
 
+  configure-federation-server:
+    image: arturneumann/owncloud-ci-php:7.1
+    pull: true
+    commands:
+      - cd /drone/fed-server
+      - echo "export TEST_SERVER_FED_URL=https://federated" > /drone/saved-settings.sh
+      - php occ security:certificates:import /etc/apache2/ssl/server.crt
+      - php occ security:certificates
+    when:
+      matrix:
+        USE_FEDERATED_SERVER: true
+        USE_SSL: true
+
   fix-permissions-federation-server:
     image: owncloudci/php:${PHP_VERSION}
     pull: true
@@ -137,6 +150,8 @@ pipeline:
       - php occ config:system:set trusted_domains 2 --value=federated
       - php occ log:manage --level 0
       - php occ config:list
+      - php occ security:certificates:import /etc/apache2/ssl/federated.crt
+      - php occ security:certificates
     when:
       matrix:
         INSTALL_SERVER: true
@@ -485,6 +500,21 @@ services:
     when:
       matrix:
         USE_FEDERATED_SERVER: true
+        USE_SSL: false
+
+  federated:
+    image: arturneumann/owncloud-ci-php:7.1
+    pull: true
+    environment:
+      - APACHE_WEBROOT=/drone/fed-server/
+      - APACHE_CONFIG_TEMPLATE=ssl
+      - APACHE_SSL_CERT=/etc/apache2/ssl/federated.crt
+      - APACHE_SSL_KEY=/etc/apache2/ssl/federated.key
+    command: [ "/usr/local/bin/apachectl", "-e", "debug" , "-D", "FOREGROUND" ]
+    when:
+      matrix:
+        USE_FEDERATED_SERVER: true
+        USE_SSL: true
 
   apache_webdav:
     image: owncloudci/php
