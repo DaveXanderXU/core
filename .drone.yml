@@ -239,8 +239,8 @@ pipeline:
       - echo 'Sharing a folder ..'
       - OC_PASS=123456 php occ user:add --password-from-env user1
       - chown www-data /drone/src -R
-      - curl -s -u user1:123456 -X MKCOL 'http://server/remote.php/webdav/new_folder'
-      - curl -s -u user1:123456 "http://server/ocs/v2.php/apps/files_sharing/api/v1/shares" --data 'path=/new_folder&shareType=0&permissions=15&name=new_folder&shareWith=admin'
+      - curl -k -s -u user1:123456 -X MKCOL 'https://server/remote.php/webdav/new_folder'
+      - curl -k -s -u user1:123456 "https://server/ocs/v2.php/apps/files_sharing/api/v1/shares" --data 'path=/new_folder&shareType=0&permissions=15&name=new_folder&shareWith=admin'
     when:
       matrix:
         TEST_SUITE: litmus
@@ -249,7 +249,7 @@ pipeline:
     image: owncloud/litmus
     pull: true
     environment:
-      - LITMUS_URL=http://server/remote.php/webdav
+      - LITMUS_URL=https://server/remote.php/webdav
       - LITMUS_USERNAME=admin
       - LITMUS_PASSWORD=admin
     when:
@@ -260,7 +260,7 @@ pipeline:
     image: owncloud/litmus
     pull: true
     environment:
-    - LITMUS_URL=http://server/remote.php/dav/files/admin
+    - LITMUS_URL=https://server/remote.php/dav/files/admin
     - LITMUS_USERNAME=admin
     - LITMUS_PASSWORD=admin
     when:
@@ -271,7 +271,7 @@ pipeline:
     image: owncloud/litmus
     pull: true
     environment:
-    - LITMUS_URL=http://server/remote.php/dav/files/admin/local_storage/
+    - LITMUS_URL=https://server/remote.php/dav/files/admin/local_storage/
     - LITMUS_USERNAME=admin
     - LITMUS_PASSWORD=admin
     when:
@@ -282,7 +282,7 @@ pipeline:
     image: owncloud/litmus
     pull: true
     environment:
-    - LITMUS_URL=http://server/remote.php/webdav/local_storage/
+    - LITMUS_URL=https://server/remote.php/webdav/local_storage/
     - LITMUS_USERNAME=admin
     - LITMUS_PASSWORD=admin
     when:
@@ -293,7 +293,7 @@ pipeline:
     image: owncloud/litmus
     pull: true
     environment:
-    - LITMUS_URL=http://server/remote.php/dav/files/admin/new_folder/
+    - LITMUS_URL=https://server/remote.php/dav/files/admin/new_folder/
     - LITMUS_USERNAME=admin
     - LITMUS_PASSWORD=admin
     when:
@@ -304,7 +304,7 @@ pipeline:
     image: owncloud/litmus
     pull: true
     environment:
-    - LITMUS_URL=http://server/remote.php/webdav/new_folder/
+    - LITMUS_URL=https://server/remote.php/webdav/new_folder/
     - LITMUS_USERNAME=admin
     - LITMUS_PASSWORD=admin
     when:
