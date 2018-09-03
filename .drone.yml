@@ -125,7 +125,7 @@ pipeline:
         TEST_SUITE: phan
 
   install-server:
-    image: owncloudci/php:${PHP_VERSION}
+    image: arturneumann/owncloud-ci-php:7.1
     pull: true
     commands:
       - ./tests/drone/install-server.sh
@@ -337,7 +337,7 @@ pipeline:
     image: owncloudci/php:${PHP_VERSION}
     pull: true
     environment:
-      - TEST_SERVER_URL=http://server
+      - TEST_SERVER_URL=https://server
     commands:
       - touch /drone/saved-settings.sh
       - . /drone/saved-settings.sh
@@ -454,10 +454,11 @@ services:
         TEST_SUITE: selenium
 
   server:
-    image: owncloudci/php:${PHP_VERSION}
+    image: arturneumann/owncloud-ci-php:7.1
     pull: true
     environment:
       - APACHE_WEBROOT=/drone/src/
+      - APACHE_CONFIG_TEMPLATE=ssl
     command: [ "/usr/local/bin/apachectl", "-e", "debug" , "-D", "FOREGROUND" ]
     when:
       matrix:
