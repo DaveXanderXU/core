@@ -23,6 +23,8 @@ namespace OCA\FederatedFileSharing\Controller;
 
 use OCA\FederatedFileSharing\Address;
 use OCA\FederatedFileSharing\AddressHandler;
+use OCA\FederatedFileSharing\FederatedShareProvider;
+use OCA\FederatedFileSharing\Ocm\Notification\FileNotification;
 use OCP\AppFramework\Http\JSONResponse;
 use OCA\FederatedFileSharing\Exception\InvalidShareException;
 use OCA\FederatedFileSharing\Exception\NotSupportedException;
@@ -33,6 +35,8 @@ use OCP\ILogger;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
+use OCP\Share;
+use OCP\Share\IShare;
 
 /**
  * Class OcmController
@@ -41,6 +45,11 @@ use OCP\IUserManager;
  */
 class OcmController extends Controller {
 	const API_VERSION = '1.0-proposal1';
+
+	/**
+	 * @var FederatedShareProvider
+	 */
+	private $federatedShareProvider;
 
 	/**
 	 * @var IURLGenerator
@@ -72,6 +81,7 @@ class OcmController extends Controller {
 	 *
 	 * @param string $appName
 	 * @param IRequest $request
+	 * @param FederatedShareProvider $federatedShareProvider
 	 * @param IURLGenerator $urlGenerator
 	 * @param IUserManager $userManager
 	 * @param AddressHandler $addressHandler
@@ -80,6 +90,7 @@ class OcmController extends Controller {
 	 */
 	public function __construct($appName,
 									IRequest $request,
+									FederatedShareProvider $federatedShareProvider,
 									IURLGenerator $urlGenerator,
 									IUserManager $userManager,
 									AddressHandler $addressHandler,
@@ -88,6 +99,7 @@ class OcmController extends Controller {
 	) {
 		parent::__construct($appName, $request);
 
+		$this->federatedShareProvider = $federatedShareProvider;
 		$this->urlGenerator = $urlGenerator;
 		$this->userManager = $userManager;
 		$this->addressHandler = $addressHandler;
@@ -132,7 +144,7 @@ class OcmController extends Controller {
 	 * @param string $owner identifier of the user that owns the resource
 	 * @param string $ownerDisplayName display name of the owner
 	 * @param string $sender Provider specific identifier of the user that wants
-	 * 							to share the resource
+	 *							to share the resource
 	 * @param string $senderDisplayName Display name of the user that wants
 	 * 									to share the resource
 	 * @param string $shareType Share type (user or group share)
@@ -149,6 +161,7 @@ class OcmController extends Controller {
 	 * 				the 'sharedSecret" as username and password
 	 * 			]
 	 *
+	 * @return JSONResponse
 	 */
 	public function createShare($shareWith,
 								$name,
@@ -229,7 +242,9 @@ class OcmController extends Controller {
 				['app' => 'federatefilesharing']
 			);
 			return new JSONResponse(
-				['message' => "internal server error, was not able to add share from {$ownerAddress->getHostName()}"],
+				[
+					'message' => "internal server error, was not able to add share from {$ownerAddress->getHostName()}"
+				],
 				Http::STATUS_INTERNAL_SERVER_ERROR
 			);
 		}
@@ -248,15 +263,88 @@ class OcmController extends Controller {
 	 * 			optional additional parameters, depending on the notification
 	 * 				and the resource type
 	 * 		]
+	 *
+	 * @return JSONResponse
 	 */
 	public function processNotification($notificationType,
 										$resourceType,
 										$providerId,
 										$notification
 	) {
-		// TODO: implement
+		try {
+			$hasMissingParams = $this->hasNull(
+				[$notificationType, $resourceType, $providerId]
+			);
+			if ($hasMissingParams || !\is_array($notification)) {
+				throw new InvalidShareException(
+					'server can not add remote share, missing parameter'
+				);
+			}
+			// TODO: check permissions/preconditions in all cases
+			switch ($notificationType) {
+				case FileNotification::NOTIFICATION_TYPE_SHARE_ACCEPTED:
+					$share = $this->getValidShare(
+						$providerId, $notification['sharedSecret']
+					);
+					$this->fedShareManager->acceptShare($share);
+					break;
+				case FileNotification::NOTIFICATION_TYPE_SHARE_DECLINED:
+					$share = $this->getValidShare(
+						$providerId, $notification['sharedSecret']
+					);
+					$this->fedShareManager->declineShare($share);
+					break;
+				case FileNotification::NOTIFICATION_TYPE_REQUEST_RESHARE:
+					$shareWith = $notification['shareWith'];
+					$share = $this->getValidShare(
+						$providerId, $notification['sharedSecret']
+					);
+					// TODO: permissions not needed ???
+					$this->fedShareManager->reShare(
+						$share, $providerId, $shareWith, 0
+					);
+					break;
+				case FileNotification::NOTIFICATION_TYPE_RESHARE_CHANGE_PERMISSION:
+					$permissions = $notification['permission'];
+					// TODO: Map OCM permissions to numeric
+					$share = $this->getValidShare(
+						$providerId, $notification['sharedSecret']
+					);
+					$this->fedShareManager->updatePermissions($share, $permissions);
+					break;
+				case FileNotification::NOTIFICATION_TYPE_SHARE_UNSHARED:
+					$this->fedShareManager->unshare(
+						$providerId, $notification['sharedSecret']
+					);
+					break;
+				case FileNotification::NOTIFICATION_TYPE_RESHARE_UNDO:
+					$share = $this->getValidShare(
+						$providerId, $notification['sharedSecret']
+					);
+					$this->fedShareManager->revoke($share);
+			}
+		} catch (Share\Exceptions\ShareNotFound $e) {
+			return new JSONResponse(
+				['message' => $e->getMessage()],
+				Http::STATUS_BAD_REQUEST
+			);
+		} catch (InvalidShareException $e) {
+			return new JSONResponse(
+				['message' => 'Missing arguments'],
+				Http::STATUS_BAD_REQUEST
+			);
+		}
+		return new JSONResponse(
+			[],
+			Http::STATUS_CREATED
+		);
 	}
 
+	/**
+	 * Get list of supported protocols
+	 *
+	 * @return array
+	 */
 	protected function getProtocols() {
 		return [
 			'webdav' => '/public.php/webdav/'
@@ -276,5 +364,26 @@ class OcmController extends Controller {
 		} else {
 			return $param === null;
 		}
+	}
+
+	/**
+	 * Get share by id, validate it's type and token
+	 *
+	 * @param int $id
+	 * @param string $sharedSecret
+	 *
+	 * @return IShare
+	 *
+	 * @throws InvalidShareException
+	 * @throws Share\Exceptions\ShareNotFound
+	 */
+	protected function getValidShare($id, $sharedSecret) {
+		$share = $this->federatedShareProvider->getShareById($id);
+		if ($share->getShareType() !== FederatedShareProvider::SHARE_TYPE_REMOTE
+			|| $share->getToken() !== $sharedSecret
+		) {
+			throw new InvalidShareException();
+		}
+		return $share;
 	}
 }
